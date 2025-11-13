@@ -2,9 +2,7 @@ package entities;
 
 import java.time.LocalDate;
 
-public class Pedido {
-    private Long id; // Clave primaria
-    private Boolean eliminado; // Baja lógica
+public class Pedido extends GenericEntity {
     private String numero; // NOT NULL, UNIQUE, máx. 20
     private LocalDate fecha; // Fecha del pedido
     private String clienteNombre; // Nombre del cliente
@@ -21,10 +19,9 @@ public class Pedido {
     public Pedido() {}
 
     // Constructor completo
-    public Pedido(Long id, Boolean eliminado, String numero, LocalDate fecha, String clienteNombre,
+    public Pedido(Long id, String numero, LocalDate fecha, String clienteNombre,
                   double total, EstadoPedido estado, Envio envio) {
-        this.id = id;
-        this.eliminado = eliminado;
+        super(id, false);
         this.numero = numero;
         this.fecha = fecha;
         this.clienteNombre = clienteNombre;
@@ -34,23 +31,6 @@ public class Pedido {
     }
 
     // Getters y setters
-    
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public Boolean getEliminado() {
-        return eliminado;
-    }
-
-    public void setEliminado(Boolean eliminado) {
-        this.eliminado = eliminado;
-    }
-
     public String getNumero() {
         return numero;
     }
@@ -102,8 +82,8 @@ public class Pedido {
      @Override
     public String toString() {
         return "Pedido{" +
-                "id=" + id +
-                ", eliminado=" + eliminado +
+                "id=" + getId() +
+                ", eliminado=" + isEliminado() +
                 ", numero='" + numero + '\'' +
                 ", fecha=" + fecha +
                 ", clienteNombre='" + clienteNombre + '\'' +

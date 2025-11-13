@@ -2,9 +2,7 @@ package entities;
 
 import java.time.LocalDate;
 
-public class Envio {
-    private Long id; // Clave primaria
-    private Boolean eliminado; // Baja lógica
+public class Envio extends GenericEntity {
     private String tracking; // UNIQUE, máx. 40
     private Empresa empresa; // Enum: ANDREANI, OCA, CORREO_ARG
     private TipoEnvio tipo; // Enum: ESTANDAR, EXPRES
@@ -29,10 +27,9 @@ public class Envio {
     public Envio() {}
 
     // Constructor completo
-    public Envio(Long id, Boolean eliminado, String tracking, Empresa empresa, TipoEnvio tipo,
+    public Envio(Long id, String tracking, Empresa empresa, TipoEnvio tipo,
                  double costo, LocalDate fechaDespacho, LocalDate fechaEstimada, EstadoEnvio estado) {
-        this.id = id;
-        this.eliminado = eliminado;
+        super(id, false);
         this.tracking = tracking;
         this.empresa = empresa;
         this.tipo = tipo;
@@ -43,27 +40,6 @@ public class Envio {
     }
 
     // Getters y setters
- 
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public Boolean getEliminado() {
-        return eliminado;
-    }
-
-    public void setEliminado(Boolean eliminado) {
-        this.eliminado = eliminado;
-    }
-
-    public void setTracking(String tracking) {
-        this.tracking = tracking;
-    }
-
     public Empresa getEmpresa() {
         return empresa;
     }
@@ -116,11 +92,15 @@ public class Envio {
         return tracking;
     }
 
+    public void setTracking(String tracking) {
+        this.tracking = tracking;
+    }
+
      @Override
     public String toString() {
         return "Envio{" +
-                "id=" + id +
-                ", eliminado=" + eliminado +
+                "id=" + getId() +
+                ", eliminado=" + isEliminado() +
                 ", tracking='" + tracking + '\'' +
                 ", empresa=" + empresa +
                 ", tipo=" + tipo +
