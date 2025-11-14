@@ -1,20 +1,21 @@
 package main;
 
+import dao.EnvioDao;
+import dao.PedidoDao;
 import entities.Pedido;
 import entities.Envio;
 import entities.Pedido.EstadoPedido;
 import entities.Envio.Empresa;
 import entities.Envio.TipoEnvio;
 import entities.Envio.EstadoEnvio;
-
 import service.PedidoService;
-
 import java.time.LocalDate;
 import java.util.Scanner;
+import service.EnvioService;
 
 public class AppMenu {
 
-    private final PedidoService pedidoService = new PedidoService();
+    //private final PedidoService pedidoService = new PedidoService();
     private final Scanner scanner = new Scanner(System.in);
 
     public void iniciar() {
@@ -45,6 +46,8 @@ public class AppMenu {
     }
 
     private void crearPedidoConEnvio() throws Exception {
+        
+        PedidoService pedidoService = createPedidoService();
         System.out.println("\n--- CREAR PEDIDO ---");
         Pedido pedido = new Pedido();
         Envio envio = new Envio();
@@ -75,12 +78,14 @@ public class AppMenu {
         envio.setFechaDespacho(LocalDate.now());
         envio.setFechaEstimada(LocalDate.now().plusDays(5));
 
-        pedidoService.crearPedidoConEnvio(pedido, envio);
+        //pedidoService.crearPedidoConEnvio(pedido, envio);
+        pedidoService.insertar(pedido);
         System.out.println("Pedido creado con éxito.");
     }
 
     private void listarPedidos() throws Exception {
         System.out.println("\n--- LISTADO DE PEDIDOS ---");
+        PedidoService pedidoService = createPedidoService();
         for (Pedido p : pedidoService.leerTodos()) {
             System.out.println(p);
         }
@@ -88,8 +93,15 @@ public class AppMenu {
 
     private void eliminarPedido() throws Exception {
         System.out.print("\nID del pedido a eliminar: ");
+        PedidoService pedidoService = createPedidoService();
         Long id = Long.parseLong(scanner.nextLine());
         pedidoService.eliminar(id);
         System.out.println("Pedido eliminado (baja lógica).");
+    }
+    private PedidoService createPedidoService() {
+        EnvioDao envioDao = new EnvioDao();
+        PedidoDao pedidoDao = new PedidoDao();
+        EnvioService envioService = new EnvioService(envioDao);
+        return new PedidoService(pedidoDao, envioService);
     }
 }
