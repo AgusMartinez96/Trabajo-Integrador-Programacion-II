@@ -3,29 +3,48 @@ package config;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.util.Properties;
-import java.io.InputStream;
 
 public class DatabaseConnection {
+    // Datos para conexión
+    private static final String URL = "jdbc:mysql://localhost:3306/tpi_pedido_envio";
+    private static final String USER = "root";
+    private static final String PASSWORD = "123456";
 
+    static {
+        try {
+            // Cargar el driver
+            Class.forName("com.mysql.cj.jdbc.Driver");
+            
+            // Validar datos de conexion de manera temprana
+            validateConfiguration();
+        } catch (ClassNotFoundException e) {
+            // Lanzar excepcion si no se encunetra el driver
+            throw new RuntimeException("Error: No se encontró el driver JDBC. " + e.getMessage());
+        } catch (IllegalStateException e) {
+            throw new ExceptionInInitializerError("Error en la configuracion de la base de datos: " + e.getMessage());
+        }
+
+    }
+
+    // Método para conectar con la base de datos
     public static Connection getConnection() throws SQLException {
-        try (InputStream input = DatabaseConnection.class.getClassLoader().getResourceAsStream("db.properties")) {
-            Properties props = new Properties();
-            if (input == null) {
-                throw new RuntimeException("No se encontró el archivo db.properties");
-            }
-            props.load(input);
-
-            String url = props.getProperty("db.url");
-            String user = props.getProperty("db.user");
-            String password = props.getProperty("db.password");
-            String driver = props.getProperty("db.driver");
-
-            Class.forName(driver); // Carga del driver JDBC
-
-            return DriverManager.getConnection(url, user, password);
-        } catch (Exception e) {
-            throw new SQLException("Error al conectar con la base de datos: " + e.getMessage(), e);
+        return DriverManager.getConnection(URL, USER, PASSWORD);
+    }
+    
+    private static void validateConfiguration(){
+        if (URL == null || URL.trim().isEmpty()) {
+            throw new IllegalStateException("La URL de la base de datos no está configurada");
+        }
+        if (USER == null || USER.trim().isEmpty()) {
+            throw new IllegalStateException("El usuario de la base de datos no está configurada");
+        }
+        if (PASSWORD == null) {
+            throw new IllegalStateException("La contraseña de la base de datos no está configurada");
         }
     }
+    // Constuctor para validar que no se instancie la clase
+    private DatabaseConnection() {
+        throw new UnsupportedOperationException("Esta es una clase utilitaria y no debe ser instanciada");
+    }
+
 }

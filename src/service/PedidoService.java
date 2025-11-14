@@ -1,75 +1,72 @@
 package service;
 
-import config.DatabaseConnection;
 import dao.PedidoDao;
-import dao.EnvioDao;
 import entities.Pedido;
-import entities.Envio;
-
-import java.sql.Connection;
 import java.util.List;
 
-public class PedidoService {
+public class PedidoService implements GenericService<Pedido> {
 
-    private final PedidoDao pedidoDao = new PedidoDao();
-    private final EnvioDao envioDao = new EnvioDao();
-
-    public void crearPedidoConEnvio(Pedido pedido, Envio envio) throws Exception {
-        try (Connection conn = DatabaseConnection.getConnection()) {
-            conn.setAutoCommit(false);
-
+    private final PedidoDao pedidoDao;
+    private final EnvioService envioService;
+    // Constructor con inyeccion de dependencias
+    public PedidoService(PedidoDao pedidoDao, EnvioService envioService) {
             // Validaciones de negocio
-            if (pedido.getTotal() < 0) {
-                throw new IllegalArgumentException("El total no puede ser negativo");
+            if (pedidoDao == null) {
+                throw new IllegalArgumentException("PedidoDao no puede ser null");
             }
+            if (envioService == null) {
+                throw new IllegalArgumentException("EnvioService no puede ser null");
+            }
+            
+            this.pedidoDao = pedidoDao;
+            this.envioService = envioService;
+       
+    }
 
-            // Crear Envio primero
-            envioDao.crear(envio, conn);
-            pedido.setEnvio(envio); // asociar el envio creado
-
-            // Crear Pedido
-            pedidoDao.crear(pedido, conn);
-
-            conn.commit();
-        } catch (Exception e) {
-            throw new Exception("Error al crear pedido con envío: " + e.getMessage(), e);
+    @Override
+    public void insertar(Pedido pedido) throws Exception {
+        validatePedido(pedido);
+        
+        if (pedido.getEnvio() != null) {
+            envioService.insertar(pedido.getEnvio());
+        } else {
+            envioService.actualizar(pedido.getEnvio());
         }
+        pedidoDao.insertar(pedido);
     }
 
 // Leer pedido por ID
+    @Override
     public Pedido leerPorId(Long id) throws Exception {
-        try (Connection conn = DatabaseConnection.getConnection()) {
-            return pedidoDao.leerPorId(id, conn);
-        }
+        return pedidoDao.leerPorId(id);
     }
 
     // Leer todos los pedidos
+    @Override
     public List<Pedido> leerTodos() throws Exception {
-        try (Connection conn = DatabaseConnection.getConnection()) {
-            return pedidoDao.leerTodos(conn);
-        }
+        return pedidoDao.leerTodos();
     }
 
     // Actualizar pedido
+    @Override
     public void actualizar(Pedido pedido) throws Exception {
-        try (Connection conn = DatabaseConnection.getConnection()) {
-            conn.setAutoCommit(false);
-
-            if (pedido.getTotal() < 0) {
-                throw new IllegalArgumentException("El total no puede ser negativo");
-            }
-
-            pedidoDao.actualizar(pedido, conn);
-            conn.commit();
-        } catch (Exception e) {
-            throw new Exception("Error al actualizar pedido: " + e.getMessage(), e);
-        }
+        validatePedido(pedido);
+            pedidoDao.actualizar(pedido);
     }
 
     // Eliminar pedido (baja lógica)
+    @Override
     public void eliminar(Long id) throws Exception {
-        try (Connection conn = DatabaseConnection.getConnection()) {
-            pedidoDao.eliminar(id, conn);
+        if (id <= 0) {
+            throw new IllegalArgumentException("El ID debe ser mayor a 0");
         }
+        pedidoDao.eliminar(id);
+    }
+    
+    // Validar pedido
+    private void validatePedido(Pedido pedido) {
+        if (pedido.getTotal() < 0) {
+            throw new IllegalArgumentException("El total no puede ser negativo");
+         }
     }
 }
