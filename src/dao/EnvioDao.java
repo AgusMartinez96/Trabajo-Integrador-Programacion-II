@@ -8,74 +8,104 @@ import config.DatabaseConnection;
 
 public class EnvioDao implements GenericDao<Envio> {
 
+    // Métodos de la interfaz ----------------------
+    
     @Override
-    public void insertar(Envio envio) throws Exception {
-        String sql = "INSERT INTO envio (tracking, empresa, tipo, costo, fecha_despacho, fecha_estimada, estado, eliminado) VALUES (?, ?, ?, ?, ?, ?, ?, false)";
-        try (Connection conn = DatabaseConnection.getConnection();
-            PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            setEnvioParameters(stmt, envio);
-            stmt.executeUpdate();
-            
-            setGeneratedId(stmt, envio);
+    public void crear(Envio envio) throws Exception {
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            this.crear(envio, conn);
         }
     }
 
     @Override
     public Envio leerPorId(Long id) throws Exception {
-        String sql = "SELECT * FROM envio WHERE id = ? AND eliminado = false";
-        try (Connection conn = DatabaseConnection.getConnection();
-            PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setLong(1, id);
-            ResultSet rs = stmt.executeQuery();
-            if (rs.next()) {
-                return mapearEnvio(rs);
-            }
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            return this.leerPorId(id, conn);
         }
-        return null;
     }
 
     @Override
     public List<Envio> leerTodos() throws Exception {
-        String sql = "SELECT * FROM envio WHERE eliminado = false";
-        List<Envio> envios = new ArrayList<>();
-        try (Connection conn = DatabaseConnection.getConnection();
-            Statement stmt = conn.createStatement()) {
-            ResultSet rs = stmt.executeQuery(sql);
-            while (rs.next()) {
-                envios.add(mapearEnvio(rs));
-            }
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            return this.leerTodos(conn);
         }
-        return envios;
     }
 
     @Override
     public void actualizar(Envio envio) throws Exception {
-        String sql = "UPDATE envio SET tracking = ?, empresa = ?, tipo = ?, costo = ?, fecha_despacho = ?, fecha_estimada = ?, estado = ? WHERE id = ?";
-        try (Connection conn = DatabaseConnection.getConnection();
-            PreparedStatement stmt = conn.prepareStatement(sql)) {
-            // Se reutiliza el metodo setEnvioParameters
-            setEnvioParameters(stmt, envio);
-            // Setear el id que no está en el método
-            stmt.setLong(8, envio.getId());
-            stmt.executeUpdate();
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            this.actualizar(envio, conn);
         }
     }
 
     @Override
     public void eliminar(Long id) throws Exception {
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            this.eliminar(id, conn);
+        }
+    }
+    
+    // Métodos de transaccionales para usar en la capa de servicios ----------------------
+    
+    public void crear(Envio envio, Connection conn) throws Exception {
+        String sql = "INSERT INTO envio (tracking, empresa, tipo, costo, fecha_despacho, fecha_estimada, estado, eliminado) VALUES (?, ?, ?, ?, ?, ?, ?, false)";
+        // La conexión NO se cierra acá, se gestiona externamente
+        try (PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            setEnvioParameters(stmt, envio);
+            stmt.executeUpdate();
+            setGeneratedId(stmt, envio);
+        }
+    }
+    
+    public Envio leerPorId(Long id, Connection conn) throws Exception {
+        String sql = "SELECT * FROM envio WHERE id = ? AND eliminado = false";
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setLong(1, id);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return mapearEnvio(rs);
+                }
+            }
+        }
+        return null;
+    }
+    
+    public List<Envio> leerTodos(Connection conn) throws Exception {
+        String sql = "SELECT * FROM envio WHERE eliminado = false";
+        List<Envio> envios = new ArrayList<>();
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    envios.add(mapearEnvio(rs));
+                }
+            }
+        }
+        return envios;
+    }
+    
+    public void actualizar(Envio envio, Connection conn) throws Exception {
+        String sql = "UPDATE envio SET tracking = ?, empresa = ?, tipo = ?, costo = ?, fecha_despacho = ?, fecha_estimada = ?, estado = ? WHERE id = ?";
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            setEnvioParameters(stmt, envio);
+            stmt.setLong(8, envio.getId());
+            stmt.executeUpdate();
+        }
+    }
+    
+    public void eliminar(Long id, Connection conn) throws Exception {
         String sql = "UPDATE envio SET eliminado = true WHERE id = ?";
-        try (Connection conn = DatabaseConnection.getConnection();
-            PreparedStatement stmt = conn.prepareStatement(sql)) {
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setLong(1, id);
             int rowsAffected = stmt.executeUpdate();
             
-            // Dar aviso si no se pudo eliminar
             if (rowsAffected == 0) {
                 throw new SQLException("No se pudo eliminar el envío. No se encontró envío con ID: " + id);
             }
         }
     }
-
+    
+    // Métodos privados de la clase ----------------------------
+    
     private Envio mapearEnvio(ResultSet rs) throws SQLException {
         Envio envio = new Envio();
         envio.setId(rs.getLong("id"));

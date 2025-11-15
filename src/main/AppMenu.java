@@ -86,7 +86,7 @@ public class AppMenu {
     private void listarPedidos() throws Exception {
         System.out.println("\n--- LISTADO DE PEDIDOS ---");
         PedidoService pedidoService = createPedidoService();
-        for (Pedido p : pedidoService.leerTodos()) {
+        for (Pedido p : pedidoService.getAll()) {
             System.out.println(p);
         }
     }
