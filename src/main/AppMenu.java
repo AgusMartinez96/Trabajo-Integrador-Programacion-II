@@ -18,7 +18,7 @@ public class AppMenu {
                 int opcion = Integer.parseInt(scanner.nextLine());
 
                 switch (opcion) {
-                    case 1 -> menuGestionPedidos();
+                    case 1 -> menuGestionPedidosYEnvios();
                     case 2 -> menuBusquedas();
                     case 3 -> menuListados();
                     case 0 -> {
@@ -35,9 +35,9 @@ public class AppMenu {
         }
     }
 
-    private void menuGestionPedidos() {
+    private void menuGestionPedidosYEnvios() {
         while (true) {
-            menuDisplay.mostrarMenuGestionPedidos();
+            menuDisplay.mostrarMenuGestionPedidosYEnvios();
 
             try {
                 int opcion = Integer.parseInt(scanner.nextLine());
@@ -47,7 +47,9 @@ public class AppMenu {
                     case 2 -> menuHandler.crearPedidoSinEnvio();
                     case 3 -> menuHandler.actualizarPedido();
                     case 4 -> menuHandler.eliminarPedido();
-                    case 5 -> { return; }
+                    case 5 -> menuHandler.actualizarEnvio();
+                    case 6 -> menuHandler.eliminarEnvio();
+                    case 7 -> { return; }
                     default -> System.out.println("Opción inválida.");
                 }
             } catch (NumberFormatException e) {

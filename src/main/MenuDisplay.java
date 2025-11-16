@@ -1,28 +1,27 @@
 
 package main;
 
-/**
- *
- * @author Andres Meshler
- */
+
 public class MenuDisplay {
     
     public void mostrarMenuPrincipal() {
         System.out.println("\n--- MENÚ PRINCIPAL ---");
-        System.out.println("1. Gestión de Pedidos");
+        System.out.println("1. Gestión de Pedidos y Envios");
         System.out.println("2. Búsquedas y Consultas");
         System.out.println("3. Listados Completos");
         System.out.println("0. Salir");
         System.out.print("Seleccione una opción: ");
     }
     
-    public void mostrarMenuGestionPedidos() {
-        System.out.println("\n--- GESTIÓN DE PEDIDOS ---");
+    public void mostrarMenuGestionPedidosYEnvios() {
+        System.out.println("\n--- GESTIÓN DE PEDIDOS Y ENVIOS ---");
         System.out.println("1. Crear nuevo pedido con envío");
         System.out.println("2. Crear nuevo pedido sin envío");
         System.out.println("3. Actualizar pedido");
         System.out.println("4. Eliminar pedido (baja lógica)");
-        System.out.println("5. Volver al menú principal");
+        System.out.println("5. Actualizar envío");
+        System.out.println("6. Eliminar envío (baja lógica)");
+        System.out.println("7. Volver al menú principal");
         System.out.print("Seleccione una opción: ");
     }
     

@@ -103,10 +103,29 @@ public class PedidoService implements GenericService<Pedido> {
         if (id <= 0) {
             throw new IllegalArgumentException("El ID debe ser mayor a 0");
         }
+        
+        // Primero obtenemos el pedido para ver si tiene envío asociado
+        Pedido pedido = pedidoDao.leerPorId(id);
+        if (pedido == null) {
+            throw new Exception("No se encontró el pedido con ID: " + id);
+        }
+        
         Connection conn = null;
         try {
             conn = DatabaseConnection.getConnection();
             conn.setAutoCommit(false);
+            
+            // Si el pedido tiene un envío asociado, lo eliminamos primero
+            if (pedido.getEnvio() != null) {
+                try {
+                    Long envioId = pedido.getEnvio().getId();
+                    System.out.println("Eliminando envío asociado ID: " + envioId);
+                    envioService.eliminar(envioId);
+                    System.out.println("Envío eliminado correctamente.");
+                } catch (Exception e) {
+                    throw new Exception("Error al eliminar el envío asociado: " + e.getMessage());
+                }
+            }
             
             // Eliminar el Pedido
             pedidoDao.eliminar(id, conn);

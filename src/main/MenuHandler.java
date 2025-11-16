@@ -11,10 +11,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Scanner;
 
-/**
- *
- * @author Andres Meshler
- */
+
 public class MenuHandler {
     
     private final Scanner scanner;
@@ -263,6 +260,74 @@ public class MenuHandler {
         Long id = Long.parseLong(scanner.nextLine());
         pedidoService.eliminar(id);
         System.out.println("Pedido eliminado (baja lógica).");
+    }
+    
+    public void actualizarEnvio() throws Exception {
+        menuDisplay.mostrarTitulo("ACTUALIZAR ENVÍO");
+        
+        // Buscar envío por tracking
+        System.out.print("Ingrese el número de tracking del envío a actualizar: ");
+        String tracking = scanner.nextLine().trim();
+
+        if (tracking.isEmpty()) {
+            System.out.println("El tracking no puede estar vacío.");
+            return;
+        }
+
+        EnvioService envioService = createEnvioService();
+        Envio envio = envioService.buscarPorTracking(tracking);
+
+        if (envio == null) {
+            System.out.println("No se encontró ningún envío con tracking: " + tracking);
+            return;
+        }
+
+        System.out.println("Envío encontrado:");
+        mostrarResumenEnvio(envio);
+
+        // Actualizar datos del envío
+        actualizarEnvioExistente(envio.getId(), envioService);
+        
+        System.out.println("Envío actualizado correctamente.");
+    }
+    
+    public void eliminarEnvio() throws Exception {
+        menuDisplay.mostrarTitulo("ELIMINAR ENVÍO");
+        
+        // Buscar envío por tracking
+        System.out.print("Ingrese el número de tracking del envío a eliminar: ");
+        String tracking = scanner.nextLine().trim();
+
+        if (tracking.isEmpty()) {
+            System.out.println("El tracking no puede estar vacío.");
+            return;
+        }
+
+        EnvioService envioService = createEnvioService();
+        Envio envio = envioService.buscarPorTracking(tracking);
+
+        if (envio == null) {
+            System.out.println("No se encontró ningún envío con tracking: " + tracking);
+            return;
+        }
+
+        System.out.println("Envío encontrado:");
+        mostrarResumenEnvio(envio);
+
+        // Confirmar eliminación
+        System.out.print("¿Está seguro de que desea eliminar este envío? (S/N): ");
+        String confirmacion = scanner.nextLine().trim().toUpperCase();
+
+        if (confirmacion.equals("S") || confirmacion.equals("SI")) {
+            try {
+                envioService.eliminar(envio.getId());
+                System.out.println("Envío eliminado correctamente (baja lógica).");
+            } catch (Exception e) {
+                System.out.println("Error al eliminar el envío: " + e.getMessage());
+            }
+        } else {
+            System.out.println("Eliminación cancelada.");
+        }
     }
     
     // Métodos auxiliares privados
@@ -652,5 +717,17 @@ public class MenuHandler {
                 System.out.println("Formato de fecha inválido. Use el formato YYYY-MM-DD (ej: 2025-10-15).");
             }
         }
+    }
+    
+    private void mostrarResumenEnvio(Envio envio) {
+        System.out.println("\n INFORMACIÓN DEL ENVÍO:");
+        System.out.println("   ID: " + envio.getId());
+        System.out.println("   Tracking: " + envio.getTracking());
+        System.out.println("   Empresa: " + envio.getEmpresa());
+        System.out.println("   Tipo: " + envio.getTipo());
+        System.out.println("   Estado: " + envio.getEstado());
+        System.out.println("   Costo: $" + envio.getCosto());
+        System.out.println("   Fecha despacho: " + envio.getFechaDespacho());
+        System.out.println("   Fecha estimada: " + envio.getFechaEstimada());
     }
 }
