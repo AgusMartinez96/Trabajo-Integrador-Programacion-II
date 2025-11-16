@@ -104,6 +104,53 @@ public class EnvioDao implements GenericDao<Envio> {
         }
     }
     
+    // Métodos de búsqueda para requeridos para opciones de menú
+    
+    // Buscar envío por tracking
+    public Envio buscarPorTracking(String tracking, Connection conn) throws Exception {
+        String sql = "SELECT * FROM envio WHERE tracking = ? AND eliminado = false";
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, tracking);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return mapearEnvio(rs);
+                }
+            }
+        }
+        return null;
+    }
+    
+    // Buscar envíos por empresa
+    public List<Envio> buscarPorEmpresa(String empresa, Connection conn) throws Exception {
+        String sql = "SELECT * FROM envio WHERE empresa = ? AND eliminado = false ORDER BY fecha_despacho DESC";
+        List<Envio> envios = new ArrayList<>();
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, empresa);
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    envios.add(mapearEnvio(rs));
+                }
+            }
+        }
+        return envios;
+    }
+    
+    // Buscar envíos por estado
+    public List<Envio> buscarPorEstado(String estado, Connection conn) throws Exception {
+        String sql = "SELECT * FROM envio WHERE estado = ? AND eliminado = false ORDER BY fecha_despacho DESC";
+        List<Envio> envios = new ArrayList<>();
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, estado);
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    envios.add(mapearEnvio(rs));
+                }
+            }
+        }
+        return envios;
+    }
+    
+    
     // Métodos privados de la clase ----------------------------
     
     private Envio mapearEnvio(ResultSet rs) throws SQLException {
@@ -114,9 +161,20 @@ public class EnvioDao implements GenericDao<Envio> {
         envio.setEmpresa(Envio.Empresa.valueOf(rs.getString("empresa")));
         envio.setTipo(Envio.TipoEnvio.valueOf(rs.getString("tipo")));
         envio.setCosto(rs.getDouble("costo"));
-        envio.setFechaDespacho(rs.getDate("fecha_despacho").toLocalDate());
-        envio.setFechaEstimada(rs.getDate("fecha_estimada").toLocalDate());
+        
+        // Manejo seguro de fechas
+        Date fechaDespacho = rs.getDate("fecha_despacho");
+        if (fechaDespacho != null) {
+            envio.setFechaDespacho(fechaDespacho.toLocalDate());
+        }
+
+        Date fechaEstimada = rs.getDate("fecha_estimada");
+        if (fechaEstimada != null) {
+            envio.setFechaEstimada(fechaEstimada.toLocalDate());
+        }
+        
         envio.setEstado(Envio.EstadoEnvio.valueOf(rs.getString("estado")));
+        
         return envio;
     }
     

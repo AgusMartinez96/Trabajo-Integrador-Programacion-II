@@ -3,9 +3,13 @@ package service;
 import config.DatabaseConnection;
 import dao.EnvioDao;
 import entities.Envio;
+import entities.Envio.Empresa;
+import entities.Envio.EstadoEnvio;
+import entities.Envio.TipoEnvio;
 
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.time.LocalDate;
 import java.util.List;
 
 public class EnvioService implements GenericService<Envio> {
@@ -106,8 +110,49 @@ public class EnvioService implements GenericService<Envio> {
         envioDao.eliminar(id, conn);
     }
     
-    // Métodos privados de la clase ----------------------------
-    private void validarEnvio(Envio envio) {
+    // Métodos de búsqueda para Envio
+    public Envio buscarPorTracking(String tracking) throws Exception {
+        if (tracking == null || tracking.trim().isEmpty()) {
+            throw new IllegalArgumentException("El tracking no puede estar vacío");
+        }
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            return envioDao.buscarPorTracking(tracking.trim(), conn);
+        }
+    }
+    
+    public List<Envio> buscarPorEmpresa(String empresa) throws Exception {
+        if (empresa == null || empresa.trim().isEmpty()) {
+            throw new IllegalArgumentException("La empresa no puede estar vacía");
+        }
+        try {
+            // Validar que la empresa sea válida
+            Envio.Empresa.valueOf(empresa.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Empresa inválida. Use: ANDREANI, OCA o CORREO_ARG");
+        }
+
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            return envioDao.buscarPorEmpresa(empresa.toUpperCase(), conn);
+        }
+    }
+    
+    public List<Envio> buscarPorEstado(String estado) throws Exception {
+        if (estado == null || estado.trim().isEmpty()) {
+            throw new IllegalArgumentException("El estado no puede estar vacío");
+        }
+        try {
+            // Validar que el estado sea válido
+            Envio.EstadoEnvio.valueOf(estado.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Estado inválido. Use: EN_PREPARACION, EN_TRANSITO o ENTREGADO");
+        }
+
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            return envioDao.buscarPorEstado(estado.toUpperCase(), conn);
+        }
+    }
+    
+    public void validarEnvio(Envio envio) {
         if (envio == null) {
             throw new IllegalArgumentException("El envío no puede ser nulo");
         }
@@ -122,6 +167,45 @@ public class EnvioService implements GenericService<Envio> {
         }
         if (envio.getEmpresa() == null || envio.getTipo() == null) {
             throw new IllegalArgumentException("Empresa y tipo de envío son obligatorios");
+        }
+    }
+    
+    // Método para actualización parcial de envío
+    public void actualizarDatosEnvio(Long envioId, String tracking, Double costo, Empresa empresa,
+            TipoEnvio tipo, EstadoEnvio estado, LocalDate fechaDespacho, LocalDate fechaEstimada) throws Exception {
+        Connection conn = null;
+        try {
+            conn = DatabaseConnection.getConnection();
+            conn.setAutoCommit(false);
+
+            Envio envio = envioDao.leerPorId(envioId, conn);
+            if (envio == null) {
+                throw new Exception("No se encontró el envío con ID: " + envioId);
+            }
+
+            // Aplicar cambios solo si se proporcionan nuevos valores
+            if (tracking != null) envio.setTracking(tracking);
+            if (costo != null) {
+                if (costo < 0) throw new IllegalArgumentException("El costo no puede ser negativo");
+                envio.setCosto(costo);
+            }
+            if (empresa != null) envio.setEmpresa(empresa);
+            if (tipo != null) envio.setTipo(tipo);
+            if (estado != null) envio.setEstado(estado);
+            if (fechaDespacho != null) envio.setFechaDespacho(fechaDespacho);
+            if (fechaEstimada != null) envio.setFechaEstimada(fechaEstimada);
+
+            // Validar el envío completo después de los cambios
+            validarEnvio(envio);
+
+            envioDao.actualizar(envio, conn);
+            conn.commit();
+
+        } catch (Exception e) {
+            if (conn != null) conn.rollback();
+            throw e;
+        } finally {
+            if (conn != null) conn.close();
         }
     }
 }

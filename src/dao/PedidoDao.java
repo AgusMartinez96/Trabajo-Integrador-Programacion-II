@@ -22,13 +22,15 @@ public class PedidoDao implements GenericDao<Pedido> {
 
     @Override
     public Pedido leerPorId(Long id) throws Exception {
-        String sql = "SELECT * FROM pedido WHERE id = ? AND eliminado = false";
+        String sql = "SELECT p.*, e.tracking, e.empresa, e.tipo, e.costo, e.fecha_despacho, e.fecha_estimada, e.estado as envio_estado "
+                       +" FROM pedido p LEFT JOIN envio e ON p.envio_id = e.id "
+                       +" WHERE p.id = ? AND p.eliminado = false AND (e.eliminado = false OR e.id IS NULL)";
         try (Connection conn = DatabaseConnection.getConnection();
             PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setLong(1, id);
             try (ResultSet rs = stmt.executeQuery()){
                 if (rs.next()) {
-                    return mapearPedido(rs);
+                    return mapearPedidoCompleto(rs);
                 }
             }
         } catch (SQLException e) {
@@ -39,13 +41,15 @@ public class PedidoDao implements GenericDao<Pedido> {
 
     @Override
     public List<Pedido> leerTodos() throws Exception {
-        String sql = "SELECT * FROM pedido WHERE eliminado = false";
+        String sql = "SELECT p.*, e.tracking, e.empresa, e.tipo, e.costo, e.fecha_despacho, e.fecha_estimada, e.estado as envio_estado " 
+                    + " FROM pedido p LEFT JOIN envio e ON p.envio_id = e.id "
+                    + " WHERE p.eliminado = false AND (e.eliminado = false OR e.id IS NULL)";
         List<Pedido> pedidos = new ArrayList<>();
         try (Connection conn = DatabaseConnection.getConnection();
             PreparedStatement stmt = conn.prepareStatement(sql)) {
             ResultSet rs = stmt.executeQuery();
             while (rs.next()) {
-                pedidos.add(mapearPedido(rs));
+                pedidos.add(mapearPedidoCompleto(rs));
             }
         } catch (SQLException e) {
             throw new Exception("Error: No se pudieron obtener todos los pedidos: " + e.getMessage());
@@ -157,6 +161,72 @@ public class PedidoDao implements GenericDao<Pedido> {
         }
         return null;
     }
+    
+    // Métodos de búsqueda para requeridos para opciones de menú
+    
+    // Buscar pedidos por número
+    public Pedido buscarPorNumero(String numero, Connection conn) throws Exception {
+        String sql = "SELECT * FROM pedido WHERE numero = ? AND eliminado = false";
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, numero);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return mapearPedido(rs);
+                }
+            }
+        }
+        return null;
+    }
+    
+    // Buscar pedidos por cliente (busqueda parcial por nombre)
+    public List<Pedido> buscarPorCliente(String clienteNombre, Connection conn) throws Exception {
+        String sql = "SELECT * FROM pedido WHERE cliente_nombre LIKE ? AND eliminado = false ORDER BY fecha DESC";
+        List<Pedido> pedidos = new ArrayList<>();
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, "%" + clienteNombre + "%");
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    pedidos.add(mapearPedido(rs));
+                }
+            }
+        }
+        return pedidos;
+    }
+    
+    // Buscar pedidos por estado
+    public List<Pedido> buscarPorEstado(String estado, Connection conn) throws Exception {
+        String sql = "SELECT * FROM pedido WHERE estado = ? AND eliminado = false ORDER BY fecha DESC";
+        List<Pedido> pedidos = new ArrayList<>();
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, estado);
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    pedidos.add(mapearPedido(rs));
+                }
+            }
+        }
+        return pedidos;
+    }
+    
+    // Verificar si existe un pedido con el mismo número (excluyendo un id dado, para actualizaciones)
+    public boolean existeNumeroPedido(String numero, Long excludeId, Connection conn) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM pedido WHERE numero = ? AND eliminado = false AND id != ?";
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, numero);
+            stmt.setLong(2, excludeId != null ? excludeId : -1);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt(1) > 0;
+                }
+            }
+        }
+        return false;
+    }
+
+    // Verificar si existe un pedido con el mismo número (para inserciones)
+    public boolean existeNumeroPedido(String numero, Connection conn) throws SQLException {
+        return existeNumeroPedido(numero, null, conn);
+    }
     // Métodos privados de la clase ----------------------------
     
     private Pedido mapearPedido(ResultSet rs) throws SQLException {
@@ -177,6 +247,50 @@ public class PedidoDao implements GenericDao<Pedido> {
             pedido.setEnvio(envioProxy);
         }
         return pedido;
+    }
+    
+    private Pedido mapearPedidoCompleto(ResultSet rs) throws SQLException {
+        Pedido pedido = new Pedido();
+        pedido.setId(rs.getLong("id"));
+        pedido.setEliminado(rs.getBoolean("eliminado"));
+        pedido.setNumero(rs.getString("numero"));
+        pedido.setFecha(rs.getDate("fecha").toLocalDate());
+        pedido.setClienteNombre(rs.getString("cliente_nombre"));
+        pedido.setTotal(rs.getDouble("total"));
+        pedido.setEstado(Pedido.EstadoPedido.valueOf(rs.getString("estado")));
+
+        // Verificar si hay envío y cargarlo completo
+        long envioId = rs.getLong("envio_id");
+        if (!rs.wasNull()) {
+            Envio envio = mapearEnvioDesdeResultSet(rs, envioId);
+            pedido.setEnvio(envio);
+        }
+
+        return pedido;
+    }
+    
+    // Método para mapear envío desde el ResultSet del JOIN
+    private Envio mapearEnvioDesdeResultSet(ResultSet rs, Long envioId) throws SQLException {
+        Envio envio = new Envio();
+        envio.setId(envioId);
+        envio.setTracking(rs.getString("tracking"));
+        envio.setEmpresa(Envio.Empresa.valueOf(rs.getString("empresa")));
+        envio.setTipo(Envio.TipoEnvio.valueOf(rs.getString("tipo")));
+        envio.setCosto(rs.getDouble("costo"));
+
+        // Manejar fechas que podrían ser nulas
+        java.sql.Date fechaDespacho = rs.getDate("fecha_despacho");
+        if (fechaDespacho != null) {
+            envio.setFechaDespacho(fechaDespacho.toLocalDate());
+        }
+
+        java.sql.Date fechaEstimada = rs.getDate("fecha_estimada");
+        if (fechaEstimada != null) {
+            envio.setFechaEstimada(fechaEstimada.toLocalDate());
+        }
+
+        envio.setEstado(Envio.EstadoEnvio.valueOf(rs.getString("envio_estado")));
+        return envio;
     }
     
     private void setPedidoParameters(PreparedStatement stmt, Pedido pedido) throws SQLException {

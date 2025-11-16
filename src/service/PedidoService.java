@@ -4,9 +4,11 @@ import config.DatabaseConnection;
 import dao.PedidoDao;
 import entities.Pedido;
 import entities.Envio;
+import entities.Pedido.EstadoPedido;
 
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.time.LocalDate;
 import java.util.List;
 
 public class PedidoService implements GenericService<Pedido> {
@@ -32,6 +34,7 @@ public class PedidoService implements GenericService<Pedido> {
     @Override
     public void insertar(Pedido pedido) throws Exception {
         validatePedido(pedido);
+        validarNumeroPedidoUnico(pedido.getNumero());
         
         Connection conn = null;
         try {
@@ -62,7 +65,7 @@ public class PedidoService implements GenericService<Pedido> {
     
      // Actualizar pedido
     @Override
-    public void actualizar(Pedido pedido) throws Exception {
+        public void actualizar(Pedido pedido) throws Exception {
         validatePedido(pedido);
         
         Connection conn = null;
@@ -128,7 +131,179 @@ public class PedidoService implements GenericService<Pedido> {
     public List<Pedido> getAll() throws Exception {
         return pedidoDao.leerTodos();
     }
+    
+    // Métodos de búsqueda para Pedido
+    public Pedido buscarPorNumero(String numero) throws Exception {
+        if (numero == null || numero.trim().isEmpty()) {
+            throw new IllegalArgumentException("El número de pedido no puede estar vacío");
+        }
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            return pedidoDao.buscarPorNumero(numero.trim(), conn);
+        }
+    }
+    
+    public List<Pedido> buscarPorCliente(String clienteNombre) throws Exception {
+        if (clienteNombre == null || clienteNombre.trim().isEmpty()) {
+            throw new IllegalArgumentException("El nombre del cliente no puede estar vacío");
+        }
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            return pedidoDao.buscarPorCliente(clienteNombre.trim(), conn);
+        }
+    }
+    
+    public List<Pedido> buscarPorEstado(String estado) throws Exception {
+        if (estado == null || estado.trim().isEmpty()) {
+            throw new IllegalArgumentException("El estado no puede estar vacío");
+        }
+        try {
+            // Validar que el estado sea válido
+            Pedido.EstadoPedido.valueOf(estado.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Estado inválido. Use: NUEVO, FACTURADO o ENVIADO");
+        }
 
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            return pedidoDao.buscarPorEstado(estado.toUpperCase(), conn);
+        }
+    }
+    
+    // Métodos para actualización parcial de pedido
+    public void actualizarDatosBasicos(Long pedidoId, String numero, LocalDate fecha, String clienteNombre, Double total, EstadoPedido estado) throws Exception {
+        Connection conn = null;
+        try {
+            conn = DatabaseConnection.getConnection();
+            conn.setAutoCommit(false);
+
+            Pedido pedido = pedidoDao.leerPorId(pedidoId, conn);
+            if (pedido == null) {
+                throw new Exception("No se encontró el pedido con ID: " + pedidoId);
+            }
+
+            // Validar unicidad si se está cambiando el número
+            if (numero != null && !numero.equals(pedido.getNumero())) {
+                validarNumeroPedidoUnico(numero, pedidoId, conn); // Validar con exclusión del pedido actual
+                pedido.setNumero(numero);
+            }
+            
+            // Aplicar cambios solo si se proporcionan nuevos valores
+            if (numero != null) pedido.setNumero(numero);
+            if (fecha != null) pedido.setFecha(fecha);
+            if (clienteNombre != null) pedido.setClienteNombre(clienteNombre);
+            if (total != null) {
+                if (total < 0) throw new IllegalArgumentException("El total no puede ser negativo");
+                pedido.setTotal(total);
+            }
+            if (estado != null) pedido.setEstado(estado);
+
+            // Validar el pedido completo después de los cambios
+            validatePedido(pedido);
+
+            pedidoDao.actualizar(pedido, conn);
+            conn.commit();
+
+        } catch (Exception e) {
+            if (conn != null) conn.rollback();
+            throw e;
+        } finally {
+            if (conn != null) conn.close();
+        }
+    }
+
+    // Método para agregar envío a un pedido
+    public void agregarEnvioAPedido(Long pedidoId, Envio envio) throws Exception {
+        Connection conn = null;
+        try {
+            conn = DatabaseConnection.getConnection();
+            conn.setAutoCommit(false);
+
+            Pedido pedido = pedidoDao.leerPorId(pedidoId, conn);
+            if (pedido == null) {
+                throw new Exception("No se encontró el pedido con ID: " + pedidoId);
+            }
+
+            if (pedido.getEnvio() != null) {
+                throw new Exception("El pedido ya tiene un envío asociado");
+            }
+
+            // Validar y crear el envío
+            envioService.validarEnvio(envio);
+            envioService.insertar(envio, conn);
+
+            // Validar que el envío sea único
+            validarEnvioUnico(envio.getId(), conn);
+
+            // Asignar el envío al pedido
+            pedido.setEnvio(envio);
+            pedidoDao.actualizar(pedido, conn);
+
+            conn.commit();
+
+        } catch (Exception e) {
+            if (conn != null) conn.rollback();
+            throw e;
+        } finally {
+            if (conn != null) conn.close();
+        }
+    }
+
+    // Método para quitar envío de un pedido
+    public void quitarEnvioDePedido(Long pedidoId) throws Exception {
+        Connection conn = null;
+        try {
+            conn = DatabaseConnection.getConnection();
+            conn.setAutoCommit(false);
+
+            Pedido pedido = pedidoDao.leerPorId(pedidoId, conn);
+            if (pedido == null) {
+                throw new Exception("No se encontró el pedido con ID: " + pedidoId);
+            }
+
+            if (pedido.getEnvio() == null) {
+                throw new Exception("El pedido no tiene envío asociado");
+            }
+
+            // Quitar el envío del pedido (NO eliminamos el envío de la base de datos)
+            pedido.setEnvio(null);
+            pedidoDao.actualizar(pedido, conn);
+
+            conn.commit();
+
+        } catch (Exception e) {
+            if (conn != null) conn.rollback();
+            throw e;
+        } finally {
+            if (conn != null) conn.close();
+        }
+    }
+    
+     // Método para validar que el número de pedido sea único (para inserción)
+    public void validarNumeroPedidoUnico(String numero) throws Exception {
+        if (numero == null || numero.trim().isEmpty()) {
+            throw new IllegalArgumentException("El número de pedido no puede estar vacío");
+        }
+
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            if (pedidoDao.existeNumeroPedido(numero, conn)) {
+                throw new Exception("Ya existe un pedido con el número: " + numero + 
+                                  ". Por favor, use un número diferente.");
+            }
+        } catch (SQLException e) {
+            throw new Exception("Error al validar número de pedido: " + e.getMessage(), e);
+        }
+    }
+
+    // Método para validar unicidad excluyendo el pedido actual (para actualización)
+    private void validarNumeroPedidoUnico(String numero, Long excludePedidoId, Connection conn) throws Exception {
+        if (numero == null || numero.trim().isEmpty()) {
+            throw new IllegalArgumentException("El número de pedido no puede estar vacío");
+        }
+
+        if (pedidoDao.existeNumeroPedido(numero, excludePedidoId, conn)) {
+            throw new Exception("Ya existe otro pedido con el número: " + numero + 
+                              ". Por favor, use un número diferente.");
+        }
+    }
+    
     // Métodos privados de la clase ------------------------
     
     // Validar pedido
@@ -150,4 +325,5 @@ public class PedidoService implements GenericService<Pedido> {
             throw new Exception("Error: El envío con ID " + envioId + " ya está asignado al pedido " + pedidoExistente.getId());
         }
     }
+    
 }
