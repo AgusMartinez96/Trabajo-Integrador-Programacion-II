@@ -2,18 +2,22 @@ package service;
 
 import config.DatabaseConnection;
 import dao.EnvioDao;
-import dao.GenericDao;
 import entities.Envio;
+import entities.Envio.Empresa;
+import entities.Envio.EstadoEnvio;
+import entities.Envio.TipoEnvio;
 
 import java.sql.Connection;
+import java.sql.SQLException;
+import java.time.LocalDate;
 import java.util.List;
 
 public class EnvioService implements GenericService<Envio> {
 
-    private final GenericDao<Envio> envioDao;
+    private final EnvioDao envioDao;
     
     // Constructor con inyección de dependencias
-    public EnvioService(GenericDao<Envio> envioDao){
+    public EnvioService(EnvioDao envioDao){
         // Validar que el Dao no esa nulo
         if (envioDao == null) {
             throw new IllegalArgumentException("Error: EnvioDao no puede ser null");
@@ -21,74 +25,187 @@ public class EnvioService implements GenericService<Envio> {
         this.envioDao = envioDao;
     }
     
-    
-
+    // Métodos de la interfaz ----------------------
     // Crear envío con validaciones
     @Override
     public void insertar(Envio envio) throws Exception {
-        validarEnvio(envio);
-        envioDao.insertar(envio);
-    }
-
-    // Leer envío por ID
-    public Envio leerPorId(Long id) throws Exception {
-        try (Connection conn = DatabaseConnection.getConnection()) {
-            return envioDao.leerPorId(id);
+        Connection conn = null;
+        try {
+            conn = DatabaseConnection.getConnection();
+            conn.setAutoCommit(false);
+            
+            this.insertar(envio, conn);
+            
+            conn.commit();
+        } catch (Exception e){
+            if (conn != null) conn.rollback();
+            throw new Exception("Error al insertar envío: " + e.getMessage(), e);
+        } finally {
+            if (conn != null) conn.close();
         }
     }
 
-    // Leer todos los envíos
-    public List<Envio> leerTodos() throws Exception {
-        try (Connection conn = DatabaseConnection.getConnection()) {
-            return envioDao.leerTodos();
-        }
-    }
-
-    // Actualizar envío con validaciones
+    @Override
     public void actualizar(Envio envio) throws Exception {
-        try (Connection conn = DatabaseConnection.getConnection()) {
+        Connection conn = null;
+        try {
+            conn = DatabaseConnection.getConnection();
             conn.setAutoCommit(false);
 
-            // Validaciones de negocio
-            if (envio.getTracking() == null || envio.getTracking().isBlank()) {
-                throw new IllegalArgumentException("El tracking no puede estar vacío");
-            }
-            if (envio.getTracking().length() > 40) {
-                throw new IllegalArgumentException("El tracking no puede superar los 40 caracteres");
-            }
-            if (envio.getCosto() < 0) {
-                throw new IllegalArgumentException("El costo no puede ser negativo");
-            }
-            if (envio.getEmpresa() == null || envio.getTipo() == null) {
-                throw new IllegalArgumentException("Empresa y tipo de envío son obligatorios");
-            }
+            this.actualizar(envio, conn);
 
-            envioDao.actualizar(envio);
             conn.commit();
         } catch (Exception e) {
+            if (conn != null) conn.rollback();
             throw new Exception("Error al actualizar envío: " + e.getMessage(), e);
+        } finally {
+            if (conn != null) conn.close();
         }
+    }
+    
+    @Override
+    public void eliminar(Long id) throws Exception {
+        Connection conn = null;
+        try {
+            conn = DatabaseConnection.getConnection();
+            conn.setAutoCommit(false);
+
+            this.eliminar(id, conn);
+
+            conn.commit();
+        } catch (Exception e) {
+            if (conn != null) conn.rollback();
+            throw new Exception("Error al eliminar envío: " + e.getMessage(), e);
+        } finally {
+            if (conn != null) conn.close();
+        }
+    }
+    
+    @Override
+    public Envio getById(Long id) throws Exception {
+            return envioDao.leerPorId(id);
     }
 
-    // Eliminar envío (baja lógica)
-    public void eliminar(Long id) throws Exception {
+    @Override
+    public List<Envio> getAll() throws Exception {
+            return envioDao.leerTodos();
+    }
+    
+    // Métodos de transaccionales para ser usados por otros servicios ----------------------
+    
+    public void insertar(Envio envio, Connection conn) throws Exception {
+        validarEnvio(envio);
+        envioDao.crear(envio, conn);
+    }
+    
+    public void actualizar(Envio envio, Connection conn) throws Exception {
+        validarEnvio(envio);
+        envioDao.actualizar(envio, conn);
+    }
+    
+    public void eliminar(Long id, Connection conn) throws Exception {
+        if (id == null || id <= 0) {
+            throw new IllegalArgumentException("El ID para eliminar no es válido");
+        }
+        envioDao.eliminar(id, conn);
+    }
+    
+    // Métodos de búsqueda para Envio
+    public Envio buscarPorTracking(String tracking) throws Exception {
+        if (tracking == null || tracking.trim().isEmpty()) {
+            throw new IllegalArgumentException("El tracking no puede estar vacío");
+        }
         try (Connection conn = DatabaseConnection.getConnection()) {
-            envioDao.eliminar(id);
+            return envioDao.buscarPorTracking(tracking.trim(), conn);
         }
     }
-    private void validarEnvio(Envio envio){
-        // Validaciones de negocio
-            if (envio.getTracking() == null || envio.getTracking().isBlank()) {
-                throw new IllegalArgumentException("El tracking no puede estar vacío");
+    
+    public List<Envio> buscarPorEmpresa(String empresa) throws Exception {
+        if (empresa == null || empresa.trim().isEmpty()) {
+            throw new IllegalArgumentException("La empresa no puede estar vacía");
+        }
+        try {
+            // Validar que la empresa sea válida
+            Envio.Empresa.valueOf(empresa.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Empresa inválida. Use: ANDREANI, OCA o CORREO_ARG");
+        }
+
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            return envioDao.buscarPorEmpresa(empresa.toUpperCase(), conn);
+        }
+    }
+    
+    public List<Envio> buscarPorEstado(String estado) throws Exception {
+        if (estado == null || estado.trim().isEmpty()) {
+            throw new IllegalArgumentException("El estado no puede estar vacío");
+        }
+        try {
+            // Validar que el estado sea válido
+            Envio.EstadoEnvio.valueOf(estado.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Estado inválido. Use: EN_PREPARACION, EN_TRANSITO o ENTREGADO");
+        }
+
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            return envioDao.buscarPorEstado(estado.toUpperCase(), conn);
+        }
+    }
+    
+    public void validarEnvio(Envio envio) {
+        if (envio == null) {
+            throw new IllegalArgumentException("El envío no puede ser nulo");
+        }
+        if (envio.getTracking() == null || envio.getTracking().isBlank()) {
+            throw new IllegalArgumentException("El tracking no puede estar vacío");
+        }
+        if (envio.getTracking().length() > 40) {
+            throw new IllegalArgumentException("El tracking no puede superar los 40 caracteres");
+        }
+        if (envio.getCosto() < 0) {
+            throw new IllegalArgumentException("El costo no puede ser negativo");
+        }
+        if (envio.getEmpresa() == null || envio.getTipo() == null) {
+            throw new IllegalArgumentException("Empresa y tipo de envío son obligatorios");
+        }
+    }
+    
+    // Método para actualización parcial de envío
+    public void actualizarDatosEnvio(Long envioId, String tracking, Double costo, Empresa empresa,
+            TipoEnvio tipo, EstadoEnvio estado, LocalDate fechaDespacho, LocalDate fechaEstimada) throws Exception {
+        Connection conn = null;
+        try {
+            conn = DatabaseConnection.getConnection();
+            conn.setAutoCommit(false);
+
+            Envio envio = envioDao.leerPorId(envioId, conn);
+            if (envio == null) {
+                throw new Exception("No se encontró el envío con ID: " + envioId);
             }
-            if (envio.getTracking().length() > 40) {
-                throw new IllegalArgumentException("El tracking no puede superar los 40 caracteres");
+
+            // Aplicar cambios solo si se proporcionan nuevos valores
+            if (tracking != null) envio.setTracking(tracking);
+            if (costo != null) {
+                if (costo < 0) throw new IllegalArgumentException("El costo no puede ser negativo");
+                envio.setCosto(costo);
             }
-            if (envio.getCosto() < 0) {
-                throw new IllegalArgumentException("El costo no puede ser negativo");
-            }
-            if (envio.getEmpresa() == null || envio.getTipo() == null) {
-                throw new IllegalArgumentException("Empresa y tipo de envío son obligatorios");
-            }
+            if (empresa != null) envio.setEmpresa(empresa);
+            if (tipo != null) envio.setTipo(tipo);
+            if (estado != null) envio.setEstado(estado);
+            if (fechaDespacho != null) envio.setFechaDespacho(fechaDespacho);
+            if (fechaEstimada != null) envio.setFechaEstimada(fechaEstimada);
+
+            // Validar el envío completo después de los cambios
+            validarEnvio(envio);
+
+            envioDao.actualizar(envio, conn);
+            conn.commit();
+
+        } catch (Exception e) {
+            if (conn != null) conn.rollback();
+            throw e;
+        } finally {
+            if (conn != null) conn.close();
+        }
     }
 }
