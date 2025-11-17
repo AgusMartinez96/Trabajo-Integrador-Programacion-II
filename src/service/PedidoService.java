@@ -51,8 +51,16 @@ public class PedidoService implements GenericService<Pedido> {
             conn.commit();
             
         } catch (Exception e) {
+            if (conn != null) {
+                conn.rollback();
+            }
             throw new Exception("Error al crear el pedido: " + e.getMessage(), e);
-        } 
+        } finally {
+            if (conn != null) {
+                conn.setAutoCommit(true);
+                conn.close();
+            }
+        }
     }
     
      // Actualizar pedido
@@ -225,8 +233,16 @@ public class PedidoService implements GenericService<Pedido> {
             conn.commit();
 
         } catch (Exception e) {
-            throw e;
-        } 
+            if (conn != null) {
+                conn.rollback();
+            } 
+            throw new Exception("Error. No se pudo agregar el envio al pedido: " + e.getMessage(), e);  
+        } finally {
+            if (conn != null){
+                conn.setAutoCommit(true);
+                conn.close();
+            }
+        }
     }
 
     // Método para quitar envío de un pedido
