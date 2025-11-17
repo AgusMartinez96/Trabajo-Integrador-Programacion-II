@@ -9,6 +9,15 @@ import config.DatabaseConnection;
 
 public class PedidoDao implements GenericDao<Pedido> {
 
+    private final EnvioDao envioDao;
+    
+    // constructor con inyección de EnvioDao
+    public PedidoDao(EnvioDao envioDao) {
+        if (envioDao == null) {
+            throw new IllegalArgumentException("EnvioDao no puede ser null");
+        }
+        this.envioDao = envioDao;
+    }
     @Override
     public void crear(Pedido pedido) throws Exception {
         String sql = "INSERT INTO pedido (numero, fecha, cliente_nombre, total, estado, envio_id, eliminado) VALUES (?, ?, ?, ?, ?, ?, false)";
@@ -17,6 +26,19 @@ public class PedidoDao implements GenericDao<Pedido> {
             setPedidoParameters(stmt, pedido);
             
             stmt.executeUpdate();
+            setGeneratedId(stmt, pedido);
+        }
+    }
+    
+    // Método para creación atómica de pedido con envío
+    @Override
+    public void crearTx(Pedido pedido, Connection conn) throws Exception {
+        String sql = "INSERT INTO pedido (numero, fecha, cliente_nombre, total, estado, envio_id, eliminado) VALUES (?, ?, ?, ?, ?, ?, false)";
+        try (PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            setPedidoParameters(stmt, pedido);
+            
+            stmt.executeUpdate();
+            setGeneratedId(stmt, pedido);
         }
     }
 
@@ -67,6 +89,16 @@ public class PedidoDao implements GenericDao<Pedido> {
             stmt.executeUpdate();
         }
     }
+    
+    @Override
+    public void actualizarTx(Pedido pedido, Connection conn) throws Exception {
+        String sql = "UPDATE pedido SET numero = ?, fecha = ?, cliente_nombre = ?, total = ?, estado = ?, envio_id = ? WHERE id = ?";
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            setPedidoParameters(stmt, pedido);
+            
+            stmt.executeUpdate();
+        }
+    }
 
     @Override
     public void eliminar(Long id) throws Exception {
@@ -82,67 +114,25 @@ public class PedidoDao implements GenericDao<Pedido> {
         }
     }
 
-    // Métodos de transaccionales para usar en la capa de servicios ----------------------
-    
-    public void crear(Pedido pedido, Connection conn) throws Exception {
-        String sql = "INSERT INTO pedido (numero, fecha, cliente_nombre, total, estado, envio_id, eliminado) VALUES (?, ?, ?, ?, ?, ?, false)";
-        try (PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            setPedidoParameters(stmt, pedido);
-            stmt.executeUpdate();
-            // VER !!!
-            setGeneratedId(stmt, pedido);
-        }
-    }
-    
-    public Pedido leerPorId(Long id, Connection conn) throws Exception {
-        String sql = "SELECT * FROM pedido WHERE id = ? AND eliminado = false";
-        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setLong(1, id);
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    return mapearPedido(rs);
-                }
-            }
-        }
-        return null;
-    }
-    
-    public List<Pedido> leerTodos(Connection conn) throws Exception {
-        String sql = "SELECT * FROM pedido WHERE eliminado = false";
-        List<Pedido> pedidos = new ArrayList<>();
-        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-            try (ResultSet rs = stmt.executeQuery()) {
-                while (rs.next()) {
-                    pedidos.add(mapearPedido(rs));
-                }
-            }
-        }
-        return pedidos;
-    }
-    
-    public void actualizar(Pedido pedido, Connection conn) throws Exception {
-        String sql = "UPDATE pedido SET numero = ?, fecha = ?, cliente_nombre = ?, total = ?, estado = ?, envio_id = ? WHERE id = ?";
-        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-            setPedidoParameters(stmt, pedido);
-            stmt.setLong(7, pedido.getId());
+    public void actualizarEnvioAsociado(Long pedidoId, Long envioId, Connection conn) throws Exception {
+        String sql = "UPDATE pedido SET envio_id = ? WHERE id = ?";
+        
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
             
-            stmt.executeUpdate();
-        }
-    }
-    
-    public void eliminar(Long id, Connection conn) throws Exception {
-        String sql = "UPDATE pedido SET eliminado = true WHERE id = ?";
-        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setLong(1, id);
-            int rowsAffected = stmt.executeUpdate();
-            
-            if (rowsAffected == 0) {
-                throw new SQLException("Error: No se pudo encontrar pedido con ID: " + id);
+            if (envioId != null) {
+                pstmt.setLong(1, envioId);
+            } else {
+                pstmt.setNull(1, Types.BIGINT);
             }
+            pstmt.setLong(2, pedidoId);
+            
+            pstmt.executeUpdate();
+        } catch (SQLException e) {
+            throw new Exception("Error al actualizar envío asociado: " + e.getMessage(), e);
         }
     }
     
-    public Pedido getByEnvioId(Long envioId, Connection conn) throws Exception {
+    public Pedido getByEnvioId(Long envioId) throws Exception {
         String sql = "SELECT * FROM pedido WHERE envio_id = ? AND eliminado = false";
         
         // Verificar que id no sea nulo
@@ -150,7 +140,8 @@ public class PedidoDao implements GenericDao<Pedido> {
           return null;  
         }
         
-        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setLong(1, envioId);
             
             try (ResultSet rs = stmt.executeQuery()) {
@@ -165,9 +156,10 @@ public class PedidoDao implements GenericDao<Pedido> {
     // Métodos de búsqueda para requeridos para opciones de menú
     
     // Buscar pedidos por número
-    public Pedido buscarPorNumero(String numero, Connection conn) throws Exception {
+    public Pedido buscarPorNumero(String numero) throws Exception {
         String sql = "SELECT * FROM pedido WHERE numero = ? AND eliminado = false";
-        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, numero);
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
@@ -179,10 +171,11 @@ public class PedidoDao implements GenericDao<Pedido> {
     }
     
     // Buscar pedidos por cliente (busqueda parcial por nombre)
-    public List<Pedido> buscarPorCliente(String clienteNombre, Connection conn) throws Exception {
+    public List<Pedido> buscarPorCliente(String clienteNombre) throws Exception {
         String sql = "SELECT * FROM pedido WHERE cliente_nombre LIKE ? AND eliminado = false ORDER BY fecha DESC";
         List<Pedido> pedidos = new ArrayList<>();
-        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, "%" + clienteNombre + "%");
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
@@ -194,10 +187,11 @@ public class PedidoDao implements GenericDao<Pedido> {
     }
     
     // Buscar pedidos por estado
-    public List<Pedido> buscarPorEstado(String estado, Connection conn) throws Exception {
+    public List<Pedido> buscarPorEstado(String estado) throws Exception {
         String sql = "SELECT * FROM pedido WHERE estado = ? AND eliminado = false ORDER BY fecha DESC";
         List<Pedido> pedidos = new ArrayList<>();
-        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, estado);
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
@@ -209,9 +203,10 @@ public class PedidoDao implements GenericDao<Pedido> {
     }
     
     // Verificar si existe un pedido con el mismo número (excluyendo un id dado, para actualizaciones)
-    public boolean existeNumeroPedido(String numero, Long excludeId, Connection conn) throws SQLException {
+    public boolean existeNumeroPedido(String numero, Long excludeId) throws SQLException {
         String sql = "SELECT COUNT(*) FROM pedido WHERE numero = ? AND eliminado = false AND id != ?";
-        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, numero);
             stmt.setLong(2, excludeId != null ? excludeId : -1);
             try (ResultSet rs = stmt.executeQuery()) {
@@ -224,8 +219,8 @@ public class PedidoDao implements GenericDao<Pedido> {
     }
 
     // Verificar si existe un pedido con el mismo número (para inserciones)
-    public boolean existeNumeroPedido(String numero, Connection conn) throws SQLException {
-        return existeNumeroPedido(numero, null, conn);
+    public boolean existeNumeroPedido(String numero) throws SQLException {
+        return existeNumeroPedido(numero, null);
     }
     // Métodos privados de la clase ----------------------------
     
@@ -305,6 +300,9 @@ public class PedidoDao implements GenericDao<Pedido> {
         } else {
             // Permite insertar un pedido sin envío
             stmt.setNull(6, java.sql.Types.BIGINT);
+        }
+        if (pedido.getId() != null) {
+            stmt.setLong(7, pedido.getId());
         }
     }
     
