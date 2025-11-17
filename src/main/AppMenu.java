@@ -1,17 +1,45 @@
 package main;
 
 import java.util.Scanner;
+import dao.EnvioDao;
+import dao.PedidoDao;
+import service.PedidoService;
+import service.EnvioService;
 
 public class AppMenu {
 
-    private final Scanner scanner = new Scanner(System.in);
-    private final MenuDisplay menuDisplay = new MenuDisplay();
-    private final MenuHandler menuHandler = new MenuHandler(scanner);
+    private final Scanner scanner;
+    private final MenuDisplay menuDisplay;
+    private final MenuHandler menuHandler;
+    private final boolean running;
+    
+    // inicializar con todas las dependencias
+    
+    public AppMenu() {
+        this.scanner = new Scanner(System.in);
+        this.menuDisplay = new MenuDisplay();
+        PedidoService pedidoService = createPedidoService();
+        EnvioService envioService = createEnvioService();
+        this.menuHandler = new MenuHandler(scanner, pedidoService, envioService);
+        this.running = true;
+    }
+    
+    private PedidoService createPedidoService() {
+        EnvioDao envioDAO = new EnvioDao();
+        PedidoDao pedidoDao = new PedidoDao(envioDAO);
+        EnvioService envioService = new EnvioService(envioDAO);
+        return new PedidoService(pedidoDao, envioService);
+    }
+    
+    private EnvioService createEnvioService() {
+        EnvioDao envioDAO = new EnvioDao();
+        return new EnvioService(envioDAO);
+    }
 
     public void iniciar() {
         System.out.println("=== SISTEMA DE GESTIÓN DE PEDIDOS Y ENVÍOS ===");
     
-        while (true) {
+        while (running) {
             menuDisplay.mostrarMenuPrincipal();
 
             try {
@@ -36,7 +64,7 @@ public class AppMenu {
     }
 
     private void menuGestionPedidosYEnvios() {
-        while (true) {
+        while (running) {
             menuDisplay.mostrarMenuGestionPedidosYEnvios();
 
             try {
@@ -61,7 +89,7 @@ public class AppMenu {
     }
     
     private void menuBusquedas() {
-        while (true) {
+        while (running) {
             menuDisplay.mostrarMenuBusquedas();
 
             try {
@@ -86,7 +114,7 @@ public class AppMenu {
     }
     
     private void menuListados() {
-        while (true) {
+        while (running) {
             menuDisplay.mostrarMenuListados();
 
             try {

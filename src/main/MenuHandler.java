@@ -1,8 +1,6 @@
 
 package main;
 
-import dao.EnvioDao;
-import dao.PedidoDao;
 import entities.Pedido;
 import entities.Envio;
 import service.PedidoService;
@@ -15,15 +13,29 @@ import java.util.Scanner;
 public class MenuHandler {
     
     private final Scanner scanner;
+    private final PedidoService pedidoService;
+    private final EnvioService envioService;
     private final MenuDisplay menuDisplay = new MenuDisplay();
     
-    public MenuHandler(Scanner scanner) {
+    public MenuHandler(Scanner scanner, PedidoService pedidoService, EnvioService envioService) {
+        
+        if (scanner == null) {
+            throw new IllegalArgumentException("Scanner no puede ser null");
+        }
+        if (pedidoService == null) {
+            throw new IllegalArgumentException("PedidoService no puede ser null");
+        }
+        if (envioService == null) {
+            throw new IllegalArgumentException("EnvioService no puede ser null");
+        }
         this.scanner = scanner;
+        this.pedidoService = pedidoService;
+        this.envioService = envioService;
     }
-    
+ 
         // Métodos de creación de pedidos
     public void crearPedidoConEnvio() throws Exception {
-        PedidoService pedidoService = createPedidoService();
+        
         menuDisplay.mostrarTitulo("CREAR PEDIDO CON ENVÍO");
         
         Pedido pedido = new Pedido();
@@ -58,11 +70,11 @@ public class MenuHandler {
         
         pedido.setEnvio(envio);
         
-        confirmarCreacionPedido(pedido, pedidoService);
+        confirmarCreacionPedido(pedido);
     }
     
     public void crearPedidoSinEnvio() throws Exception {
-        PedidoService pedidoService = createPedidoService();
+        
         menuDisplay.mostrarTitulo("CREAR PEDIDO SIN ENVÍO");
 
         Pedido pedido = new Pedido();
@@ -82,7 +94,7 @@ public class MenuHandler {
         pedido.setEstado(seleccionarEstadoPedido());
         pedido.setEnvio(null);
         
-        confirmarCreacionPedido(pedido, pedidoService);
+        confirmarCreacionPedido(pedido);
     }
 
     // Métodos de búsqueda
@@ -96,7 +108,6 @@ public class MenuHandler {
             return;
         }
 
-        PedidoService pedidoService = createPedidoService();
         Pedido pedido = pedidoService.buscarPorNumero(numero);
 
         if (pedido != null) {
@@ -117,7 +128,6 @@ public class MenuHandler {
             return;
         }
 
-        PedidoService pedidoService = createPedidoService();
         List<Pedido> pedidos = pedidoService.buscarPorCliente(cliente);
 
         if (!pedidos.isEmpty()) {
@@ -134,7 +144,6 @@ public class MenuHandler {
         System.out.print("Ingrese el estado: ");
         String estado = scanner.nextLine().trim().toUpperCase();
 
-        PedidoService pedidoService = createPedidoService();
         List<Pedido> pedidos = pedidoService.buscarPorEstado(estado);
 
         if (!pedidos.isEmpty()) {
@@ -155,7 +164,6 @@ public class MenuHandler {
             return;
         }
 
-        EnvioService envioService = createEnvioService();
         Envio envio = envioService.buscarPorTracking(tracking);
 
         if (envio != null) {
@@ -172,7 +180,6 @@ public class MenuHandler {
         System.out.print("Ingrese la empresa: ");
         String empresa = scanner.nextLine().trim().toUpperCase();
 
-        EnvioService envioService = createEnvioService();
         List<Envio> envios = envioService.buscarPorEmpresa(empresa);
 
         if (!envios.isEmpty()) {
@@ -189,7 +196,6 @@ public class MenuHandler {
         System.out.print("Ingrese el estado: ");
         String estado = scanner.nextLine().trim().toUpperCase();
 
-        EnvioService envioService = createEnvioService();
         List<Envio> envios = envioService.buscarPorEstado(estado);
 
         if (!envios.isEmpty()) {
@@ -203,7 +209,6 @@ public class MenuHandler {
     // Métodos de listado
     public void listarPedidos() throws Exception {
         menuDisplay.mostrarTitulo("LISTADO COMPLETO DE PEDIDOS");
-        PedidoService pedidoService = createPedidoService();
         List<Pedido> pedidos = pedidoService.getAll();
         
         if (!pedidos.isEmpty()) {
@@ -216,7 +221,6 @@ public class MenuHandler {
     
     public void listarEnvios() throws Exception {
         menuDisplay.mostrarTitulo("LISTADO COMPLETO DE ENVÍOS");
-        EnvioService envioService = createEnvioService();
         List<Envio> envios = envioService.getAll();
 
         if (!envios.isEmpty()) {
@@ -233,8 +237,6 @@ public class MenuHandler {
         System.out.print("Ingrese el ID del pedido a actualizar: ");
         Long id = Long.parseLong(scanner.nextLine());
 
-        PedidoService pedidoService = createPedidoService();
-        EnvioService envioService = createEnvioService();
         Pedido pedido = pedidoService.getById(id);
 
         if (pedido == null) {
@@ -245,9 +247,9 @@ public class MenuHandler {
         System.out.println("Pedido encontrado:");
         mostrarResumenPedido(pedido);
     
-        actualizarDatosBasicosPedido(pedido, pedidoService);
+        actualizarDatosBasicosPedido(pedido);
         pedido = pedidoService.getById(id);
-        gestionarEnvioPedido(pedido, pedidoService, envioService);
+        gestionarEnvioPedido(pedido);
         pedido = pedidoService.getById(id);
 
         System.out.println("Proceso de actualización completado.");
@@ -256,11 +258,9 @@ public class MenuHandler {
     
     public void eliminarPedido() throws Exception {
         System.out.print("\nID del pedido a eliminar: ");
-        PedidoService pedidoService = createPedidoService();
+
         Long id = Long.parseLong(scanner.nextLine());
         
-
-        PedidoService pedioService = createPedidoService();
         Pedido pedido = pedidoService.getById(id);
 
         if (pedido == null) {
@@ -300,7 +300,6 @@ public class MenuHandler {
             return;
         }
 
-        EnvioService envioService = createEnvioService();
         Envio envio = envioService.buscarPorTracking(tracking);
 
         if (envio == null) {
@@ -312,7 +311,7 @@ public class MenuHandler {
         mostrarResumenEnvio(envio);
 
         // Actualizar datos del envío
-        actualizarEnvioExistente(envio.getId(), envioService);
+        actualizarEnvioExistente(envio.getId());
         
         System.out.println("Envío actualizado correctamente.");
     }
@@ -329,7 +328,6 @@ public class MenuHandler {
             return;
         }
 
-        EnvioService envioService = createEnvioService();
         Envio envio = envioService.buscarPorTracking(tracking);
 
         if (envio == null) {
@@ -357,7 +355,7 @@ public class MenuHandler {
     }
     
     // Métodos auxiliares privados
-    private void confirmarCreacionPedido(Pedido pedido, PedidoService pedidoService) {
+    private void confirmarCreacionPedido(Pedido pedido) {
         System.out.println("\nConfirmando datos del pedido:");
         System.out.println("Número: " + pedido.getNumero());
         System.out.println("Fecha: " + pedido.getFecha());
@@ -383,18 +381,6 @@ public class MenuHandler {
         } else {
             System.out.println("Creación del pedido cancelada.");
         }
-    }
-    
-    private PedidoService createPedidoService() {
-        EnvioDao envioDao = new EnvioDao();
-        PedidoDao pedidoDao = new PedidoDao();
-        EnvioService envioService = new EnvioService(envioDao);
-        return new PedidoService(pedidoDao, envioService);
-    }
-    
-    private EnvioService createEnvioService() {
-        EnvioDao envioDao = new EnvioDao();
-        return new EnvioService(envioDao);
     }
     
     // Métodos para selección de enums
@@ -484,7 +470,7 @@ public class MenuHandler {
         }
     }
     
-    private void actualizarDatosBasicosPedido(Pedido pedido, PedidoService pedidoService) throws Exception {
+    private void actualizarDatosBasicosPedido(Pedido pedido) throws Exception {
         System.out.println("ACTUALIZAR DATOS BÁSICOS (deje vacío para mantener valor actual):");
 
         String nuevoNumero = null;
@@ -541,7 +527,7 @@ public class MenuHandler {
         }
     }
     
-    private void gestionarEnvioPedido(Pedido pedido, PedidoService pedidoService, EnvioService envioService) throws Exception {
+    private void gestionarEnvioPedido(Pedido pedido) throws Exception {
         System.out.println("\nGESTIÓN DE ENVÍO:");
 
         if (pedido.getEnvio() == null) {
@@ -564,7 +550,7 @@ public class MenuHandler {
             String opcionEnvio = scanner.nextLine().trim();
             switch (opcionEnvio) {
                 case "1" -> {
-                    actualizarEnvioExistente(pedido.getEnvio().getId(), envioService);
+                    actualizarEnvioExistente(pedido.getEnvio().getId());
                     System.out.println("Envío actualizado.");
                 }
                 case "2" -> {
@@ -583,7 +569,7 @@ public class MenuHandler {
         }
     }
     
-    private void actualizarEnvioExistente(Long envioId, EnvioService envioService) throws Exception {
+    private void actualizarEnvioExistente(Long envioId) throws Exception {
         System.out.println("\nACTUALIZAR ENVÍO EXISTENTE (deje vacío para mantener valor actual):");
 
         Envio envioActual = envioService.getById(envioId);

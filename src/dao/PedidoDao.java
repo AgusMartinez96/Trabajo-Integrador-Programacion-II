@@ -9,6 +9,15 @@ import config.DatabaseConnection;
 
 public class PedidoDao implements GenericDao<Pedido> {
 
+    private final EnvioDao envioDao;
+    
+    // constructor con inyección de EnvioDao
+    public PedidoDao(EnvioDao envioDao) {
+        if (envioDao == null) {
+            throw new IllegalArgumentException("EnvioDao no puede ser null");
+        }
+        this.envioDao = envioDao;
+    }
     @Override
     public void crear(Pedido pedido) throws Exception {
         String sql = "INSERT INTO pedido (numero, fecha, cliente_nombre, total, estado, envio_id, eliminado) VALUES (?, ?, ?, ?, ?, ?, false)";
