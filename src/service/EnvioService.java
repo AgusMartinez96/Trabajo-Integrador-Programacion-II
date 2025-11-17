@@ -1,14 +1,11 @@
 package service;
 
-import config.DatabaseConnection;
 import dao.EnvioDao;
 import entities.Envio;
 import entities.Envio.Empresa;
 import entities.Envio.EstadoEnvio;
 import entities.Envio.TipoEnvio;
-
 import java.sql.Connection;
-import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -29,56 +26,42 @@ public class EnvioService implements GenericService<Envio> {
     // Crear envío con validaciones
     @Override
     public void insertar(Envio envio) throws Exception {
-        Connection conn = null;
+        validarEnvio(envio);
         try {
-            conn = DatabaseConnection.getConnection();
-            conn.setAutoCommit(false);
-            
-            this.insertar(envio, conn);
-            
-            conn.commit();
+            envioDao.crear(envio);   
         } catch (Exception e){
-            if (conn != null) conn.rollback();
             throw new Exception("Error al insertar envío: " + e.getMessage(), e);
-        } finally {
-            if (conn != null) conn.close();
         }
     }
 
-    @Override
-    public void actualizar(Envio envio) throws Exception {
-        Connection conn = null;
+    
+    public void insertar(Envio envio, Connection conn) throws Exception {
+        validarEnvio(envio);
         try {
-            conn = DatabaseConnection.getConnection();
-            conn.setAutoCommit(false);
-
-            this.actualizar(envio, conn);
-
-            conn.commit();
-        } catch (Exception e) {
-            if (conn != null) conn.rollback();
-            throw new Exception("Error al actualizar envío: " + e.getMessage(), e);
-        } finally {
-            if (conn != null) conn.close();
+            envioDao.crearTx(envio, conn);   
+        } catch (Exception e){
+            throw new Exception("Error al insertar envío: " + e.getMessage(), e);
         }
     }
     
     @Override
-    public void eliminar(Long id) throws Exception {
-        Connection conn = null;
+    public void actualizar(Envio envio) throws Exception {
+        validarEnvio(envio);
         try {
-            conn = DatabaseConnection.getConnection();
-            conn.setAutoCommit(false);
-
-            this.eliminar(id, conn);
-
-            conn.commit();
+            envioDao.actualizar(envio);
         } catch (Exception e) {
-            if (conn != null) conn.rollback();
+            throw new Exception("Error al actualizar envío: " + e.getMessage(), e);
+        } 
+    }
+    
+    @Override
+    public void eliminar(Long id) throws Exception {
+        try {
+            envioDao.eliminar(id);
+            
+        } catch (Exception e) {
             throw new Exception("Error al eliminar envío: " + e.getMessage(), e);
-        } finally {
-            if (conn != null) conn.close();
-        }
+        } 
     }
     
     @Override
@@ -91,32 +74,15 @@ public class EnvioService implements GenericService<Envio> {
             return envioDao.leerTodos();
     }
     
-    // Métodos de transaccionales para ser usados por otros servicios ----------------------
-    
-    public void insertar(Envio envio, Connection conn) throws Exception {
-        validarEnvio(envio);
-        envioDao.crear(envio, conn);
-    }
-    
-    public void actualizar(Envio envio, Connection conn) throws Exception {
-        validarEnvio(envio);
-        envioDao.actualizar(envio, conn);
-    }
-    
-    public void eliminar(Long id, Connection conn) throws Exception {
-        if (id == null || id <= 0) {
-            throw new IllegalArgumentException("El ID para eliminar no es válido");
-        }
-        envioDao.eliminar(id, conn);
-    }
-    
     // Métodos de búsqueda para Envio
     public Envio buscarPorTracking(String tracking) throws Exception {
         if (tracking == null || tracking.trim().isEmpty()) {
             throw new IllegalArgumentException("El tracking no puede estar vacío");
         }
-        try (Connection conn = DatabaseConnection.getConnection()) {
-            return envioDao.buscarPorTracking(tracking.trim(), conn);
+        try {
+            return envioDao.buscarPorTracking(tracking.trim());
+        }catch (Exception e){
+            throw new Exception("Error al buscar envío por tracking" + e.getMessage(), e);
         }
     }
     
@@ -131,8 +97,10 @@ public class EnvioService implements GenericService<Envio> {
             throw new IllegalArgumentException("Empresa inválida. Use: ANDREANI, OCA o CORREO_ARG");
         }
 
-        try (Connection conn = DatabaseConnection.getConnection()) {
-            return envioDao.buscarPorEmpresa(empresa.toUpperCase(), conn);
+        try  {
+            return envioDao.buscarPorEmpresa(empresa.toUpperCase());
+        }catch (Exception e){
+            throw new Exception("Error al buscar envío por empresa" + e.getMessage(), e);
         }
     }
     
@@ -147,8 +115,10 @@ public class EnvioService implements GenericService<Envio> {
             throw new IllegalArgumentException("Estado inválido. Use: EN_PREPARACION, EN_TRANSITO o ENTREGADO");
         }
 
-        try (Connection conn = DatabaseConnection.getConnection()) {
-            return envioDao.buscarPorEstado(estado.toUpperCase(), conn);
+        try {
+            return envioDao.buscarPorEstado(estado.toUpperCase());
+        }catch (Exception e){
+            throw new Exception("Error al buscar envío por estado" + e.getMessage(), e);
         }
     }
     
@@ -173,12 +143,9 @@ public class EnvioService implements GenericService<Envio> {
     // Método para actualización parcial de envío
     public void actualizarDatosEnvio(Long envioId, String tracking, Double costo, Empresa empresa,
             TipoEnvio tipo, EstadoEnvio estado, LocalDate fechaDespacho, LocalDate fechaEstimada) throws Exception {
-        Connection conn = null;
         try {
-            conn = DatabaseConnection.getConnection();
-            conn.setAutoCommit(false);
-
-            Envio envio = envioDao.leerPorId(envioId, conn);
+            
+            Envio envio = envioDao.leerPorId(envioId);
             if (envio == null) {
                 throw new Exception("No se encontró el envío con ID: " + envioId);
             }
@@ -198,14 +165,10 @@ public class EnvioService implements GenericService<Envio> {
             // Validar el envío completo después de los cambios
             validarEnvio(envio);
 
-            envioDao.actualizar(envio, conn);
-            conn.commit();
+            envioDao.actualizar(envio);
 
         } catch (Exception e) {
-            if (conn != null) conn.rollback();
             throw e;
-        } finally {
-            if (conn != null) conn.close();
-        }
+        } 
     }
 }

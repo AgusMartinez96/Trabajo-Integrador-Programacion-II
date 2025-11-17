@@ -12,68 +12,51 @@ public class EnvioDao implements GenericDao<Envio> {
     
     @Override
     public void crear(Envio envio) throws Exception {
-        try (Connection conn = DatabaseConnection.getConnection()) {
-            this.crear(envio, conn);
-        }
-    }
-
-    @Override
-    public Envio leerPorId(Long id) throws Exception {
-        try (Connection conn = DatabaseConnection.getConnection()) {
-            return this.leerPorId(id, conn);
-        }
-    }
-
-    @Override
-    public List<Envio> leerTodos() throws Exception {
-        try (Connection conn = DatabaseConnection.getConnection()) {
-            return this.leerTodos(conn);
-        }
-    }
-
-    @Override
-    public void actualizar(Envio envio) throws Exception {
-        try (Connection conn = DatabaseConnection.getConnection()) {
-            this.actualizar(envio, conn);
-        }
-    }
-
-    @Override
-    public void eliminar(Long id) throws Exception {
-        try (Connection conn = DatabaseConnection.getConnection()) {
-            this.eliminar(id, conn);
-        }
-    }
-    
-    // Métodos de transaccionales para usar en la capa de servicios ----------------------
-    
-    public void crear(Envio envio, Connection conn) throws Exception {
         String sql = "INSERT INTO envio (tracking, empresa, tipo, costo, fecha_despacho, fecha_estimada, estado, eliminado) VALUES (?, ?, ?, ?, ?, ?, ?, false)";
-        // La conexión NO se cierra acá, se gestiona externamente
-        try (PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            
             setEnvioParameters(stmt, envio);
             stmt.executeUpdate();
-            setGeneratedId(stmt, envio);
+            setGeneratedId(stmt,envio);
+        }
+    }
+
+    // Método para creacion atómica de pedido con envio
+    @Override
+    public void crearTx(Envio envio, Connection conn) throws Exception {
+        String sql = "INSERT INTO envio (tracking, empresa, tipo, costo, fecha_despacho, fecha_estimada, estado, eliminado) VALUES (?, ?, ?, ?, ?, ?, ?, false)";
+        try (PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            
+            setEnvioParameters(stmt, envio);
+            stmt.executeUpdate();
+            setGeneratedId(stmt,envio);
         }
     }
     
-    public Envio leerPorId(Long id, Connection conn) throws Exception {
+    
+    @Override
+    public Envio leerPorId(Long id) throws Exception {
         String sql = "SELECT * FROM envio WHERE id = ? AND eliminado = false";
-        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            
             stmt.setLong(1, id);
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
+            try(ResultSet rs = stmt.executeQuery()){
+                if(rs.next()){
                     return mapearEnvio(rs);
                 }
             }
         }
         return null;
     }
-    
-    public List<Envio> leerTodos(Connection conn) throws Exception {
+
+    @Override
+    public List<Envio> leerTodos() throws Exception {
         String sql = "SELECT * FROM envio WHERE eliminado = false";
         List<Envio> envios = new ArrayList<>();
-        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
                     envios.add(mapearEnvio(rs));
@@ -82,8 +65,19 @@ public class EnvioDao implements GenericDao<Envio> {
         }
         return envios;
     }
-    
-    public void actualizar(Envio envio, Connection conn) throws Exception {
+
+    @Override
+    public void actualizar(Envio envio) throws Exception {
+        String sql = "UPDATE envio SET tracking = ?, empresa = ?, tipo = ?, costo = ?, fecha_despacho = ?, fecha_estimada = ?, estado = ? WHERE id = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+            setEnvioParameters(stmt, envio);
+            stmt.setLong(8, envio.getId());
+            stmt.executeUpdate();
+        }
+    }
+    @Override
+    public void actualizarTx(Envio envio, Connection conn) throws Exception {
         String sql = "UPDATE envio SET tracking = ?, empresa = ?, tipo = ?, costo = ?, fecha_despacho = ?, fecha_estimada = ?, estado = ? WHERE id = ?";
         try (PreparedStatement stmt = conn.prepareStatement(sql)) {
             setEnvioParameters(stmt, envio);
@@ -91,10 +85,12 @@ public class EnvioDao implements GenericDao<Envio> {
             stmt.executeUpdate();
         }
     }
-    
-    public void eliminar(Long id, Connection conn) throws Exception {
+
+    @Override
+    public void eliminar(Long id) throws Exception {
         String sql = "UPDATE envio SET eliminado = true WHERE id = ?";
-        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setLong(1, id);
             int rowsAffected = stmt.executeUpdate();
             
@@ -103,13 +99,14 @@ public class EnvioDao implements GenericDao<Envio> {
             }
         }
     }
-    
+        
     // Métodos de búsqueda para requeridos para opciones de menú
     
     // Buscar envío por tracking
-    public Envio buscarPorTracking(String tracking, Connection conn) throws Exception {
+    public Envio buscarPorTracking(String tracking) throws Exception {
         String sql = "SELECT * FROM envio WHERE tracking = ? AND eliminado = false";
-        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, tracking);
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
@@ -121,10 +118,11 @@ public class EnvioDao implements GenericDao<Envio> {
     }
     
     // Buscar envíos por empresa
-    public List<Envio> buscarPorEmpresa(String empresa, Connection conn) throws Exception {
+    public List<Envio> buscarPorEmpresa(String empresa) throws Exception {
         String sql = "SELECT * FROM envio WHERE empresa = ? AND eliminado = false ORDER BY fecha_despacho DESC";
         List<Envio> envios = new ArrayList<>();
-        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, empresa);
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
@@ -136,10 +134,11 @@ public class EnvioDao implements GenericDao<Envio> {
     }
     
     // Buscar envíos por estado
-    public List<Envio> buscarPorEstado(String estado, Connection conn) throws Exception {
+    public List<Envio> buscarPorEstado(String estado) throws Exception {
         String sql = "SELECT * FROM envio WHERE estado = ? AND eliminado = false ORDER BY fecha_despacho DESC";
         List<Envio> envios = new ArrayList<>();
-        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, estado);
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {

@@ -258,9 +258,35 @@ public class MenuHandler {
         System.out.print("\nID del pedido a eliminar: ");
         PedidoService pedidoService = createPedidoService();
         Long id = Long.parseLong(scanner.nextLine());
-        pedidoService.eliminar(id);
-        System.out.println("Pedido eliminado (baja lógica).");
+        
+
+        PedidoService pedioService = createPedidoService();
+        Pedido pedido = pedidoService.getById(id);
+
+        if (pedido == null) {
+            System.out.println("No se encontró ningún pedido con id: " + id);
+            return;
+        }
+
+        System.out.println("Pedido encontrado:");
+        mostrarResumenPedido(pedido);
+
+        // Confirmar eliminación
+        System.out.print("¿Está seguro de que desea eliminar este pedido? (S/N): ");
+        String confirmacion = scanner.nextLine().trim().toUpperCase();
+
+        if (confirmacion.equals("S") || confirmacion.equals("SI")) {
+            try {
+                pedidoService.eliminar(id);
+                System.out.println("Pedido eliminado correctamente(baja lógica).");
+            } catch (Exception e) {
+                System.out.println("Error al eliminar el pedido: " + e.getMessage());
+            }
+        } else {
+            System.out.println("Eliminación cancelada.");
+        }
     }
+        
     
     public void actualizarEnvio() throws Exception {
         menuDisplay.mostrarTitulo("ACTUALIZAR ENVÍO");
@@ -508,6 +534,7 @@ public class MenuHandler {
 
         if (nuevoNumero != null || nuevaFecha != null || nuevoCliente != null || nuevoTotal != null || nuevoEstado != null) {
             pedidoService.actualizarDatosBasicos(pedido.getId(), nuevoNumero, nuevaFecha, nuevoCliente, nuevoTotal, nuevoEstado);
+            //pedidoService.actualizar(pedido);
             System.out.println("Datos básicos actualizados correctamente.");
         } else {
             System.out.println("No se realizaron cambios en los datos básicos.");
