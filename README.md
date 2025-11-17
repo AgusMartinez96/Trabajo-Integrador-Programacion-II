@@ -1,5 +1,7 @@
 # Sistema de Gestión de Pedidos y Envíos
 
+# Enlace del Video: https://youtu.be/7QRvEbFJupk
+
 ## Descripción del Proyecto
 
 Sistema completo de gestión de pedidos y envíos desarrollado en Java que permite realizar operaciones CRUD (Crear, Leer, Actualizar, Eliminar) sobre estas entidades, implementando una arquitectura robusta en capas con persistencia en base de datos MySQL.
