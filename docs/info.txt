@@ -1,0 +1,1 @@
+Este archivo permite que la carpeta docs exista en el repositorio.
